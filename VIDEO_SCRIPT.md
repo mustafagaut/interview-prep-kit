@@ -417,4 +417,4 @@ Thank you for watching."
 
 ## Optional Short Demo Closing
 
-"In one sentence: Interview Prep Kit turns a job description into an adaptive preparation system that understands what the candidate knows, what they can defend, and what they should practice next."
+"In one sentence: Interview Prep Kit turns a job description into an adaptive       preparation system that understands what the candidate knows, what they can defend, and what they should practice next."
