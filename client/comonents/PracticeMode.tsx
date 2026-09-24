@@ -23,11 +23,33 @@ export default function PracticeMode({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
 
-  useEffect(() => {
-    setCards(initialFlashcards);
-    setCurrentIndex(0);
-    setIsFlipped(false);
-  }, [initialFlashcards]);
+useEffect(() => {
+  setCards((currentCards) => {
+    const currentCardId = currentCards[currentIndex]?.id;
+
+    const nextCards = initialFlashcards.map((card) => {
+      const existingCard = currentCards.find((c) => c.id === card.id);
+
+      return existingCard
+        ? { ...card, confidence_score: existingCard.confidence_score }
+        : card;
+    });
+
+    const newIndex = currentCardId
+      ? nextCards.findIndex((card) => card.id === currentCardId)
+      : -1;
+
+    if (newIndex >= 0) {
+      setCurrentIndex(newIndex);
+    } else {
+      setCurrentIndex((prev) =>
+        Math.min(prev, Math.max(nextCards.length - 1, 0))
+      );
+    }
+
+    return nextCards;
+  });
+}, [initialFlashcards]);
 
   const currentCard = cards[currentIndex];
 
