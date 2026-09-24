@@ -100,6 +100,21 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
     }
   };
 
+  const openQuestionFromInterviewDay = (questionId: string) => {
+    setSelectedScheduleDay(null);
+    setActiveTab('questions');
+    setTimeout(() => {
+      const el = document.getElementById(`question-${questionId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+
+  const openFlashcardFromInterviewDay = (_flashcardId: string) => {
+    setActiveTab('flashcards');
+  };
+
   if (!kit) {
     return (
       <main className="min-h-screen bg-[#0B0D10] p-8 text-[#F5F7FA]">
@@ -337,6 +352,7 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
               const kitQuestionIndex = kit.questions.findIndex((item) => item.id === question.id);
               return (
                 <article
+                  id={`question-${question.id}`}
                   key={question.id}
                   className="rounded-xl border border-white/10 bg-[#161B22] p-5 text-[#F5F7FA] shadow-lg transition-all duration-150 hover:border-white/20 sm:p-6"
                 >
@@ -507,7 +523,13 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
         {activeTab === 'resume' && <ResumeAnalysis kitId={id} />}
         {activeTab === 'stories' && <StoryBank kitId={id} />}
         {activeTab === 'blind-spots' && <WeaknessMode kitId={id} />}
-        {activeTab === 'interview-day' && <InterviewDay kitId={id} />}
+        {activeTab === 'interview-day' && (
+          <InterviewDay
+            kitId={id}
+            onOpenQuestion={openQuestionFromInterviewDay}
+            onOpenFlashcard={openFlashcardFromInterviewDay}
+          />
+        )}
         {activeTab === 'debrief' && <DebriefMode kitId={id} />}
         {activeTab === 'labs' && <LabsMode kitId={id} />}
         {activeTab === 'knowledge' && <KnowledgeBase kitId={id} />}

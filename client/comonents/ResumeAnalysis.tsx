@@ -30,7 +30,9 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -83,7 +85,13 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || 'Unable to analyze resume');
+      
       setAnalysis(data);
+
+      // Scroll to the results section after state update/DOM render
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     } catch (analysisError) {
       setError(
         analysisError instanceof Error
@@ -189,7 +197,7 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
 
       {/* Analysis Results */}
       {analysis && (
-        <div className="space-y-6">
+        <div ref={resultsRef} className="space-y-6 pt-2">
           {/* Extracted Skills */}
           {analysis.skills && analysis.skills.length > 0 && (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 backdrop-blur-md">
