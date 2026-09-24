@@ -1,0 +1,15 @@
+{
+  "name": "interview-prep-kit-monorepo",
+  "version": "1.0.0",
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build:server": "cd server && npm run build",
+    "build:client": "cd client && npm run build",
+    "test": "npm test --prefix server",
+    "evaluate": "server\\node_modules\\.bin\\tsx.cmd scripts/evaluate.js"
+  },
+  "dependencies": {
+    "minimist": "^1.2.8"
+  }
+}
