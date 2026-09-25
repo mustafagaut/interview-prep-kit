@@ -15,6 +15,12 @@ interface MissionControl {
   top_risks: { topic: string; average_confidence: number }[];
 }
 
+interface FormErrors {
+  jd?: string;
+  companyUrl?: string;
+  days?: string;
+}
+
 export default function Home() {
   const router = useRouter();
   const [jd, setJd] = useState('');
@@ -24,6 +30,7 @@ export default function Home() {
   const [days, setDays] = useState(5);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FormErrors>({});
   const [mission, setMission] = useState<MissionControl | null>(null);
   const [missionVisible, setMissionVisible] = useState(true);
 
@@ -32,13 +39,24 @@ export default function Home() {
       router.push('/login');
       return;
     }
+
     setMissionVisible(window.localStorage.getItem('interview-prep-mission-hidden') !== 'true');
+
+    let isMounted = true;
     apiFetch(`${apiBase}/kits/dashboard`)
       .then((response) =>
         response.ok ? response.json() : Promise.reject(new Error('Dashboard unavailable'))
       )
-      .then((data) => setMission(data.kit))
-      .catch(() => setMission(null));
+      .then((data) => {
+        if (isMounted) setMission(data.kit);
+      })
+      .catch(() => {
+        if (isMounted) setMission(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   const handleLogout = () => {
@@ -46,9 +64,46 @@ export default function Home() {
     router.push('/login');
   };
 
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    // Job Description validation
+    if (!jd.trim()) {
+      newErrors.jd = 'Job description is required.';
+    } else if (jd.trim().length < 30) {
+      newErrors.jd = 'Please provide a more detailed job description (minimum 30 characters).';
+    }
+
+    // Company URL validation
+    if (!companyUrl.trim()) {
+      newErrors.companyUrl = 'Company URL is required.';
+    } else {
+      const urlPattern = /^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})(:\d{1,5})?(\/.*)?$/i;
+      if (!urlPattern.test(companyUrl.trim())) {
+        newErrors.companyUrl = 'Please enter a valid web URL (e.g., https://company.com).';
+      }
+    }
+
+    // Days validation
+    if (!days || isNaN(days)) {
+      newErrors.days = 'Preparation duration is required.';
+    } else if (days < 1 || days > 60) {
+      newErrors.days = 'Preparation days must be between 1 and 60.';
+    }
+
+    setFieldErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+
+    // Trigger manual validation before sending API request
+    if (!validateForm()) {
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const response = await apiFetch(`${apiBase}/kits`, {
@@ -122,7 +177,7 @@ export default function Home() {
 
               <div className="text-left sm:text-right">
                 <div className="text-4xl font-black text-[#60A5FA]">
-                  {mission.readiness.overall}
+                  {mission.readiness?.overall ?? 0}
                 </div>
                 <p className="text-[11px] font-bold uppercase tracking-wide text-[#6F7887]">
                   Readiness / 100
@@ -135,11 +190,11 @@ export default function Home() {
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-blue-200">
                   What should you do now?
                 </p>
-                <p className="mt-1 text-lg sm:text-xl font-bold text-white">
-                  {mission.next_action.title}
+                <p className="mt-1 text-lg font-bold text-white sm:text-xl">
+                  {mission.next_action?.title}
                 </p>
                 <p className="mt-1 text-sm leading-relaxed text-blue-100">
-                  {mission.next_action.reason}
+                  {mission.next_action?.reason}
                 </p>
               </div>
 
@@ -152,7 +207,7 @@ export default function Home() {
               </button>
             </div>
 
-            {mission.top_risks.length > 0 && (
+            {mission.top_risks && mission.top_risks.length > 0 && (
               <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/5 pt-2">
                 <span className="mr-1 text-xs font-bold uppercase tracking-wide text-[#6F7887]">
                   Top Risks
@@ -211,6 +266,7 @@ export default function Home() {
 
           {/* Builder Form */}
           <form
+            noValidate
             onSubmit={handleSubmit}
             className="rounded-2xl border border-white/10 bg-white p-6 text-[#111827] shadow-[12px_12px_0_#1d4ed8] sm:p-8"
           >
@@ -227,45 +283,78 @@ export default function Home() {
             </div>
 
             <div className="space-y-4">
+              {/* Job Description Field */}
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                 Job Description <span className="text-red-500">*</span>
                 <textarea
-                  required
                   value={jd}
-                  onChange={(event) => setJd(event.target.value)}
+                  onChange={(event) => {
+                    setJd(event.target.value);
+                    if (fieldErrors.jd) setFieldErrors((prev) => ({ ...prev, jd: undefined }));
+                  }}
                   placeholder="Paste the full job description or key responsibilities..."
-                  className="mt-1.5 min-h-40 w-full resize-y rounded-xl border border-slate-300 bg-slate-50 p-3.5 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600"
+                  className={`mt-1.5 min-h-40 w-full resize-y rounded-xl border p-3.5 text-sm font-normal text-slate-900 outline-none transition ${
+                    fieldErrors.jd
+                      ? 'border-red-500 bg-red-50/50 focus:border-red-600 focus:ring-1 focus:ring-red-600'
+                      : 'border-slate-300 bg-slate-50 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600'
+                  }`}
                 />
+                {fieldErrors.jd && (
+                  <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.jd}</p>
+                )}
               </label>
 
               <div className="grid gap-4 sm:grid-cols-2">
+                {/* Company URL Field */}
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Company URL <span className="text-red-500">*</span>
                   <input
-                    required
-                    type="url"
+                    type="text"
                     value={companyUrl}
-                    onChange={(event) => setCompanyUrl(event.target.value)}
+                    onChange={(event) => {
+                      setCompanyUrl(event.target.value);
+                      if (fieldErrors.companyUrl)
+                        setFieldErrors((prev) => ({ ...prev, companyUrl: undefined }));
+                    }}
                     placeholder="https://company.com"
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600"
+                    className={`mt-1.5 w-full rounded-xl border p-3 text-sm font-normal text-slate-900 outline-none transition ${
+                      fieldErrors.companyUrl
+                        ? 'border-red-500 bg-red-50/50 focus:border-red-600 focus:ring-1 focus:ring-red-600'
+                        : 'border-slate-300 bg-slate-50 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600'
+                    }`}
                   />
+                  {fieldErrors.companyUrl && (
+                    <p className="mt-1 text-xs font-semibold text-red-600">
+                      {fieldErrors.companyUrl}
+                    </p>
+                  )}
                 </label>
 
+                {/* Prep Duration Field */}
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Prep Duration (Days) <span className="text-red-500">*</span>
                   <input
-                    required
                     type="number"
-                    min={1}
-                    max={60}
                     value={days}
-                    onChange={(event) => setDays(Number(event.target.value))}
-                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600"
+                    onChange={(event) => {
+                      setDays(event.target.value ? Number(event.target.value) : 0);
+                      if (fieldErrors.days)
+                        setFieldErrors((prev) => ({ ...prev, days: undefined }));
+                    }}
+                    className={`mt-1.5 w-full rounded-xl border p-3 text-sm font-normal text-slate-900 outline-none transition ${
+                      fieldErrors.days
+                        ? 'border-red-500 bg-red-50/50 focus:border-red-600 focus:ring-1 focus:ring-red-600'
+                        : 'border-slate-300 bg-slate-50 focus:border-blue-600 focus:bg-white focus:ring-1 focus:ring-blue-600'
+                    }`}
                   />
+                  {fieldErrors.days && (
+                    <p className="mt-1 text-xs font-semibold text-red-600">{fieldErrors.days}</p>
+                  )}
                 </label>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
+                {/* Optional Company Name */}
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Company Name
                   <input
@@ -276,6 +365,7 @@ export default function Home() {
                   />
                 </label>
 
+                {/* Optional Role Title */}
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Role Title
                   <input
@@ -288,6 +378,7 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Global submission error */}
             {error && (
               <p
                 role="alert"
