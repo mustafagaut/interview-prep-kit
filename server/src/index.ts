@@ -5,6 +5,8 @@ import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import kitRoutes from './routes/Kit.js';
+import authRoutes from './routes/auth.js';
+import { requireAuth } from './middleware/auth.js';
 
 export const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -16,7 +18,10 @@ app.get('/ready', (_req, res) => {
   const ready = mongoose.connection.readyState === 1;
   res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not_ready' });
 });
-app.use('/api/kits', kitRoutes);
+
+app.use('/api/auth', authRoutes);
+app.use('/api/kits', requireAuth, kitRoutes);
+
 app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (res.headersSent) return next(error);
   const status = error instanceof mongoose.Error.ValidationError ? 400 : 500;
