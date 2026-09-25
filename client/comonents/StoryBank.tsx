@@ -43,7 +43,6 @@ const emptyDraft: StoryDraft = {
   result: '',
 };
 
-// Component for auto-resizing textareas seamlessly
 function AutoResizingTextarea({
   value,
   onChange,
@@ -92,6 +91,9 @@ export default function StoryBank({ kitId }: { kitId: string }) {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Ref targeted to scroll down to the story list/creation flow if needed
+  const listTopRef = useRef<HTMLDivElement>(null);
+
   const loadStories = async () => {
     try {
       const response = await apiFetch(`/api/kits/${kitId}/stories`);
@@ -120,6 +122,11 @@ export default function StoryBank({ kitId }: { kitId: string }) {
         const createdStory = await response.json();
         setStories((current) => [...current, createdStory]);
         setDraft(emptyDraft);
+
+        // Smoothly scroll down to display the updated list/new item
+        setTimeout(() => {
+          listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
       }
     } catch (err) {
       console.error('Failed to save story:', err);
@@ -229,6 +236,9 @@ export default function StoryBank({ kitId }: { kitId: string }) {
           </button>
         </div>
       </div>
+
+      {/* Target reference anchor for auto-scroll */}
+      <div ref={listTopRef} />
 
       {/* Stories List */}
       {loading ? (

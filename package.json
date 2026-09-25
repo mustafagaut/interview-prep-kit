@@ -11,6 +11,7 @@
     "batch": "node scripts/batch.js"
   },
   "dependencies": {
-    "minimist": "^1.2.8"
+    "minimist": "^1.2.8",
+    "pdfjs-dist": "^6.3.289"
   }
 }

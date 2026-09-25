@@ -30,8 +30,11 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
   const [resume, setResume] = useState('');
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [parsingPdf, setParsingPdf] = useState(false);
   const [error, setError] = useState('');
+  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const analysisRef = useRef<HTMLDivElement>(null); // Ref to target results container
 
   useEffect(() => {
     let isMounted = true;
@@ -49,27 +52,92 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
     };
   }, [kitId]);
 
-  const handleTextareaChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setResume(e.target.value);
+  const updateTextareaHeight = () => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   };
 
-  const readFile = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleTextareaChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    setResume(e.target.value);
+    updateTextareaHeight();
+  };
+
+  const loadPdfJsScript = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      // @ts-ignore
+      if (window.pdfjsLib) {
+        // @ts-ignore
+        resolve(window.pdfjsLib);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.async = true;
+      script.onload = () => {
+        // @ts-ignore
+        const pdfjsLib = window.pdfjsLib;
+        if (pdfjsLib) {
+          pdfjsLib.GlobalWorkerOptions.workerSrc =
+            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          resolve(pdfjsLib);
+        } else {
+          reject(new Error('Failed to initialize PDF parser library.'));
+        }
+      };
+      script.onerror = () => reject(new Error('Failed to load PDF parser script from CDN.'));
+      document.body.appendChild(script);
+    });
+  };
+
+  const extractPdfText = async (file: File): Promise<string> => {
+    const pdfjsLib = await loadPdfJsScript();
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    let textContent = '';
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const text = await page.getTextContent();
+      const pageStrings = text.items
+        .map((item: any) => ('str' in item ? item.str : ''))
+        .join(' ');
+      textContent += pageStrings + '\n';
+    }
+
+    return textContent.trim();
+  };
+
+  const readFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const content = typeof reader.result === 'string' ? reader.result : '';
-      setResume(content);
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+
+    setError('');
+
+    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      setParsingPdf(true);
+      try {
+        const text = await extractPdfText(file);
+        if (!text) throw new Error('Could not extract text from PDF.');
+        setResume(text);
+        setTimeout(updateTextareaHeight, 0);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error parsing PDF file');
+      } finally {
+        setParsingPdf(false);
       }
-    };
-    reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const content = typeof reader.result === 'string' ? reader.result : '';
+        setResume(content);
+        setTimeout(updateTextareaHeight, 0);
+      };
+      reader.readAsText(file);
+    }
   };
 
   const analyze = async () => {
@@ -84,7 +152,14 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || 'Unable to analyze resume');
+      
       setAnalysis(data);
+
+      // Smoothly scroll down to the analysis results container after render
+      setTimeout(() => {
+        analysisRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+
     } catch (analysisError) {
       setError(
         analysisError instanceof Error
@@ -98,7 +173,6 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
 
   return (
     <section className="space-y-6">
-      {/* Header */}
       <div>
         <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-blue-400">
           Candidate Evidence
@@ -111,13 +185,12 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
         </p>
       </div>
 
-      {/* Input Box */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-xl shadow-xl space-y-4">
         <textarea
           ref={textareaRef}
           value={resume}
           onChange={handleTextareaChange}
-          placeholder="Paste your resume content here or upload a file..."
+          placeholder="Paste your resume content here or upload a file (.pdf, .txt, .md)..."
           rows={5}
           className="w-full resize-none overflow-hidden rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm leading-relaxed text-slate-100 placeholder:text-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
         />
@@ -137,18 +210,19 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
               />
             </svg>
-            Upload text file
+            {parsingPdf ? 'Extracting PDF...' : 'Upload PDF or text file'}
             <input
               type="file"
-              accept=".txt,.md,.text"
-              onChange={readFile}
+              accept=".pdf,.txt,.md,.text"
+              onChange={(e) => void readFile(e)}
+              disabled={parsingPdf}
               className="sr-only"
             />
           </label>
 
           <button
             type="button"
-            disabled={loading || resume.trim().length < 20}
+            disabled={loading || parsingPdf || resume.trim().length < 20}
             onClick={() => void analyze()}
             className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition-all hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
           >
@@ -188,92 +262,91 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
         )}
       </div>
 
-      {/* Analysis Results */}
-      {analysis && (
-        <div className="space-y-6">
-          {/* Extracted Skills */}
-          {analysis.skills && analysis.skills.length > 0 && (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 backdrop-blur-md">
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
-                Extracted Technical Skills
-              </span>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {analysis.skills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300"
-                  >
-                    {skill}
-                  </span>
-                ))}
+      {/* Attach ref here so browser scrolls precisely to the generated results */}
+      <div ref={analysisRef}>
+        {analysis && (
+          <div className="space-y-6">
+            {analysis.skills && analysis.skills.length > 0 && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 backdrop-blur-md">
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-400">
+                  Extracted Technical Skills
+                </span>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {analysis.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Claims Grid */}
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">
-              Identified Claims ({analysis.claims.length})
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {analysis.claims.map((claim) => (
-                <article
-                  key={claim.id}
-                  className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/80 p-5 backdrop-blur-md transition-all hover:border-slate-700 shadow-md"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-bold leading-relaxed text-slate-100">
-                        {claim.text}
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">
+                Identified Claims ({analysis.claims.length})
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {analysis.claims.map((claim) => (
+                  <article
+                    key={claim.id}
+                    className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/80 p-5 backdrop-blur-md transition-all hover:border-slate-700 shadow-md"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-bold leading-relaxed text-slate-100">
+                          {claim.text}
+                        </p>
+                        <span
+                          className={`shrink-0 rounded-md border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ${
+                            riskStyles[claim.risk] || riskStyles.safe
+                          }`}
+                        >
+                          {claim.risk.replaceAll('-', ' ')}
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-xs leading-relaxed text-slate-400">
+                        {claim.reason}
                       </p>
-                      <span
-                        className={`shrink-0 rounded-md border px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ${
-                          riskStyles[claim.risk] || riskStyles.safe
-                        }`}
-                      >
-                        {claim.risk.replaceAll('-', ' ')}
-                      </span>
                     </div>
 
-                    <p className="mt-3 text-xs leading-relaxed text-slate-400">
-                      {claim.reason}
-                    </p>
-                  </div>
-
-                  <div className="mt-4 border-t border-slate-800/80 pt-3">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-                      Suggested Preparation
-                    </span>
-                    <p className="mt-1 text-xs font-medium text-slate-300 leading-relaxed">
-                      {claim.suggested_evidence}
-                    </p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          {/* Questions Section */}
-          {analysis.questions.length > 0 && (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-md">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Likely Follow-up Questions
-              </span>
-              <div className="mt-4 space-y-2.5">
-                {analysis.questions.map((question) => (
-                  <div
-                    key={question.id}
-                    className="flex items-start gap-3 rounded-xl border border-slate-800/80 bg-slate-950/60 p-3.5 text-xs text-slate-200 leading-relaxed"
-                  >
-                    <span className="text-blue-400 font-bold">Q.</span>
-                    <p>{question.prompt}</p>
-                  </div>
+                    <div className="mt-4 border-t border-slate-800/80 pt-3">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Suggested Preparation
+                      </span>
+                      <p className="mt-1 text-xs font-medium text-slate-300 leading-relaxed">
+                        {claim.suggested_evidence}
+                      </p>
+                    </div>
+                  </article>
                 ))}
               </div>
             </div>
-          )}
-        </div>
-      )}
+
+            {analysis.questions.length > 0 && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-md">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Likely Follow-up Questions
+                </span>
+                <div className="mt-4 space-y-2.5">
+                  {analysis.questions.map((question) => (
+                    <div
+                      key={question.id}
+                      className="flex items-start gap-3 rounded-xl border border-slate-800/80 bg-slate-950/60 p-3.5 text-xs text-slate-200 leading-relaxed"
+                    >
+                      <span className="text-blue-400 font-bold">Q.</span>
+                      <p>{question.prompt}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
