@@ -169,9 +169,9 @@ export default function Home() {
                 <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#6F7887]">
                   Interview Mission Control
                 </p>
-                <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
-                  {mission.target_role}
-                </h2>
+                   <h2 className="mt-2 break-words text-3xl font-black tracking-tight sm:text-4xl">
+                    {mission.target_role}
+                    </h2>
                 <p className="mt-1 text-sm text-[#A7AFBD]">{mission.company}</p>
               </div>
 

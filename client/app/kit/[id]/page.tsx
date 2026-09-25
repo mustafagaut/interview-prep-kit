@@ -202,39 +202,42 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
     <main className="min-h-screen overflow-x-hidden bg-[#0B0D10] text-[#F5F7FA]">
       <div className="mx-auto max-w-7xl space-y-7 px-4 py-6 sm:px-6 lg:px-8">
         {/* Header */}
-        <header className="border-b border-white/10 pb-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#A7AFBD]">
-            Interview Preparation Kit
-          </p>
-          <div className="mt-3 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-[#F5F7FA] sm:text-4xl">
-                {kit.role.title || 'Role Interview Kit'}
-              </h1>
-              <p className="mt-2 break-words text-sm text-[#A7AFBD]">
-                {kit.source.company} <span className="px-1 text-[#6F7887]">·</span> {kit.source.company_url}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#A7AFBD]">
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-                {kit.role.requirements.length} Requirements
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-                {kit.questions.length} Questions
-              </span>
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-                {kit.schedule.days_available} Day Prep
-              </span>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="ml-2 rounded-lg border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-[#A7AFBD] transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
-        </header>
+       {/* Header */}
+<header className="border-b border-white/10 pb-6">
+  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#A7AFBD]">
+    Interview Preparation Kit
+  </p>
+  <div className="mt-3 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+    {/* Added min-w-0 to prevent flex item overflow */}
+    <div className="min-w-0 flex-1">
+      <h1 className="break-words text-3xl font-bold tracking-tight text-[#F5F7FA] sm:text-4xl">
+        {kit.role.title || 'Role Interview Kit'}
+      </h1>
+      <p className="mt-2 break-words text-sm text-[#A7AFBD]">
+        {kit.source.company} <span className="px-1 text-[#6F7887]">·</span> {kit.source.company_url}
+      </p>
+    </div>
+    
+    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#A7AFBD] shrink-0">
+      <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
+        {kit.role.requirements.length} Requirements
+      </span>
+      <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
+        {kit.questions.length} Questions
+      </span>
+      <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
+        {kit.schedule.days_available} Day Prep
+      </span>
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="ml-2 rounded-lg border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-[#A7AFBD] transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+      >
+        Sign Out
+      </button>
+    </div>
+  </div>
+</header>
 
         {/* Navigation Tabs */}
         <nav
