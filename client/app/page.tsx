@@ -164,26 +164,33 @@ export default function Home() {
               ×
             </button>
 
-           <div className="flex flex-wrap items-start justify-between gap-6 pr-8">
-  {/* Added min-w-0 and flex-1 so the text container respects flex bounds */}
-  <div className="min-w-0 flex-1">
-    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#6F7887]">
-      Interview Mission Control
-    </p>
-    {/* Removed break-words to ensure it wraps cleanly at spaces instead of mid-word */}
-    <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
-      {mission.target_role}
-    </h2>
-    <p className="mt-1 text-sm text-[#A7AFBD]">{mission.company}</p>
-  </div>
-
-  <div className="text-left sm:text-right shrink-0">
-    <div className="text-4xl font-black text-[#60A5FA]">
-      {mission.readiness?.overall ?? 0}
+           <div className="w-full overflow-hidden">
+  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 pr-8">
+    <div className="min-w-0 flex-1 w-full">
+      <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#6F7887]">
+        Interview Mission Control
+      </p>
+      
+      {/* 
+        - whitespace-normal: Forces normal whitespace wrapping behavior (breaks at spaces).
+        - break-normal: Prevents breaking mid-word.
+        - block w-full: Ensures it behaves like a block element taking up full width.
+      */}
+      <h2 className="mt-2 block w-full whitespace-normal break-normal text-3xl font-black tracking-tight sm:text-4xl">
+        {mission.target_role}
+      </h2>
+      
+      <p className="mt-1 text-sm text-[#A7AFBD]">{mission.company}</p>
     </div>
-    <p className="text-[11px] font-bold uppercase tracking-wide text-[#6F7887]">
-      Readiness / 100
-    </p>
+
+    <div className="text-left sm:text-right shrink-0">
+      <div className="text-4xl font-black text-[#60A5FA]">
+        {mission.readiness?.overall ?? 0}
+      </div>
+      <p className="text-[11px] font-bold uppercase tracking-wide text-[#6F7887]">
+        Readiness / 100
+      </p>
+    </div>
   </div>
 </div>
 
