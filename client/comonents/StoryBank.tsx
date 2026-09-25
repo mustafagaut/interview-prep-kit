@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { apiFetch } from '@/lib/auth';
 
 const categories = [
   'leadership',
@@ -93,7 +94,7 @@ export default function StoryBank({ kitId }: { kitId: string }) {
 
   const loadStories = async () => {
     try {
-      const response = await fetch(`/api/kits/${kitId}/stories`);
+      const response = await apiFetch(`/api/kits/${kitId}/stories`);
       if (response.ok) setStories(await response.json());
     } catch (err) {
       console.error('Failed to load stories:', err);
@@ -110,7 +111,7 @@ export default function StoryBank({ kitId }: { kitId: string }) {
     if (!draft.title.trim() || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/kits/${kitId}/stories`, {
+      const response = await apiFetch(`/api/kits/${kitId}/stories`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(draft),
@@ -133,7 +134,7 @@ export default function StoryBank({ kitId }: { kitId: string }) {
       current.map((item) => (item.id === story.id ? updated : item))
     );
     try {
-      await fetch(`/api/kits/${kitId}/stories/${story.id}`, {
+      await apiFetch(`/api/kits/${kitId}/stories/${story.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated),
@@ -146,7 +147,7 @@ export default function StoryBank({ kitId }: { kitId: string }) {
   const deleteStory = async (storyId: string) => {
     setStories((current) => current.filter((story) => story.id !== storyId));
     try {
-      await fetch(`/api/kits/${kitId}/stories/${storyId}`, { method: 'DELETE' });
+      await apiFetch(`/api/kits/${kitId}/stories/${storyId}`, { method: 'DELETE' });
     } catch (err) {
       console.error('Failed to delete story:', err);
       void loadStories();

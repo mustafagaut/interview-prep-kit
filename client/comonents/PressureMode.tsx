@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useRef, useState } from 'react';
+import { apiFetch } from '@/lib/auth';
 
 const levels = ['warm-up', 'normal', 'technical', 'hard', 'stress'] as const;
 const personalities = [
@@ -42,7 +43,7 @@ export default function PressureMode({ kitId }: { kitId: string }) {
   const startSession = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/kits/${kitId}/pressure-session`, {
+      const response = await apiFetch(`/api/kits/${kitId}/pressure-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ level, personality }),
@@ -69,7 +70,7 @@ export default function PressureMode({ kitId }: { kitId: string }) {
 
   const submitAnswer = async () => {
     if (sessionId && answer.trim() && currentTurn) {
-      await fetch(`/api/kits/${kitId}/sessions/${sessionId}/answer`, {
+      await apiFetch(`/api/kits/${kitId}/sessions/${sessionId}/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answer, topic: currentTurn.prompt }),

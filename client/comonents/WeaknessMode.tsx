@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/auth';
 
 interface BlindSpot {
   requirement_id: string;
@@ -35,8 +36,8 @@ export default function WeaknessMode({ kitId }: { kitId: string }) {
     setLoading(true);
 
     Promise.all([
-      fetch(`/api/kits/${kitId}/blind-spots`),
-      fetch(`/api/kits/${kitId}/daily-weakness`),
+      apiFetch(`/api/kits/${kitId}/blind-spots`),
+      apiFetch(`/api/kits/${kitId}/daily-weakness`),
     ])
       .then(async ([blindSpotResponse, dailyResponse]) => {
         const spotsData = blindSpotResponse.ok

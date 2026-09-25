@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useRef, useState } from 'react';
+import { apiFetch } from '@/lib/auth';
 
 interface Lab {
   title: string;
@@ -28,7 +29,7 @@ export default function LabsMode({ kitId }: { kitId: string }) {
   const loadLab = async () => {
     setLoadingLab(true);
     try {
-      const response = await fetch(`/api/kits/${kitId}/labs/${type}`, {
+      const response = await apiFetch(`/api/kits/${kitId}/labs/${type}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
@@ -60,7 +61,7 @@ export default function LabsMode({ kitId }: { kitId: string }) {
   const submit = async () => {
     setSubmitting(true);
     try {
-      const response = await fetch(`/api/kits/${kitId}/labs/${type}`, {
+      const response = await apiFetch(`/api/kits/${kitId}/labs/${type}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answer }),

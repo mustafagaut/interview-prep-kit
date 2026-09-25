@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { apiFetch } from '@/lib/auth';
 
 interface Claim {
   id: string;
@@ -30,13 +31,11 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let isMounted = true;
-    fetch(`/api/kits/${kitId}/resume-analysis`)
+    apiFetch(`/api/kits/${kitId}/resume-analysis`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (isMounted && data && data.claims && data.claims.length > 0) {
@@ -77,7 +76,7 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
     setError('');
     setLoading(true);
     try {
-      const response = await fetch(`/api/kits/${kitId}/resume-analysis`, {
+      const response = await apiFetch(`/api/kits/${kitId}/resume-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resume }),
@@ -85,13 +84,7 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || 'Unable to analyze resume');
-      
       setAnalysis(data);
-
-      // Scroll to the results section after state update/DOM render
-      setTimeout(() => {
-        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
     } catch (analysisError) {
       setError(
         analysisError instanceof Error
@@ -197,7 +190,7 @@ export default function ResumeAnalysis({ kitId }: { kitId: string }) {
 
       {/* Analysis Results */}
       {analysis && (
-        <div ref={resultsRef} className="space-y-6 pt-2">
+        <div className="space-y-6">
           {/* Extracted Skills */}
           {analysis.skills && analysis.skills.length > 0 && (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 backdrop-blur-md">

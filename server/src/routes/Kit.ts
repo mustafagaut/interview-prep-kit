@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import mongoose from 'mongoose';
 import type { IStory } from '../models/Kit.js';
 import Kit from '../models/Kit.js';
 import InterviewSession from '../models/InterviewSession.js';
@@ -18,6 +17,7 @@ import { analyzeStory, storyCategories, type StoryCategory, type StoryInput } fr
 import { createDailyWeakness, findBlindSpots } from '../services/weakness.js';
 import { analyzeDebrief, createInterviewDayPlan, type DebriefInput } from '../services/interviewDay.js';
 import { createMissionControl, getNextBestAction } from '../services/nextAction.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -28,6 +28,7 @@ router.get('/features', async (_req, res) => {
 
 // POST generate and persist a complete preparation kit.
 router.post('/', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   const { jd, company_url, days, company, role, location } = req.body ?? {};
   if (typeof jd !== 'string' || !jd.trim()) return res.status(400).json({ error: 'jd is required' });
   if (typeof company_url !== 'string' || !company_url.trim()) return res.status(400).json({ error: 'company_url is required' });
@@ -42,7 +43,7 @@ router.post('/', async (req, res) => {
       location,
     });
     const kit = await Kit.create({
-      userId: new mongoose.Types.ObjectId(),
+      userId,
       ...generatedKit,
     });
     res.status(201).json(kit);
@@ -54,25 +55,29 @@ router.post('/', async (req, res) => {
 
 // GET all user kits
 router.get('/', async (req, res) => {
-  const kits = await Kit.find().sort({ createdAt: -1 });
+  const userId = (req as AuthedRequest).userId as string;
+  const kits = await Kit.find({ userId }).sort({ createdAt: -1 });
   res.json(kits);
 });
 
 router.get('/dashboard', async (req, res) => {
-  const kit = await Kit.findOne().sort({ updatedAt: -1 });
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ userId }).sort({ updatedAt: -1 });
   if (!kit) return res.json({ kit: null, message: 'Create your first interview kit to start mission control.' });
   res.json({ kit: createMissionControl(kit) });
 });
 
 // GET single kit by ID
 router.get('/:id', async (req, res) => {
-  const kit = await Kit.findById(req.params.id);
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(kit);
 });
 
 router.get('/:id/readiness', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(calculateReadiness({
     title: kit.role.title,
@@ -84,30 +89,34 @@ router.get('/:id/readiness', async (req, res) => {
 });
 
 router.get('/:id/next-action', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(getNextBestAction(kit));
 });
 
 router.get('/:id/events', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   if (!isFeatureEnabled('event_tracking')) return res.json([]);
-  const kit = await Kit.exists({ _id: req.params.id });
+  const kit = await Kit.exists({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(await Event.find({ kit_id: req.params.id }).sort({ createdAt: -1 }).limit(100).lean());
 });
 
 router.post('/:id/events', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   if (!isFeatureEnabled('event_tracking')) return res.status(404).json({ error: 'Event tracking is disabled' });
   const { type, payload } = req.body ?? {};
   if (typeof type !== 'string' || !type.trim()) return res.status(400).json({ error: 'type is required' });
-  const kit = await Kit.exists({ _id: req.params.id });
+  const kit = await Kit.exists({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const event = await Event.create({ kit_id: req.params.id, type, payload: payload && typeof payload === 'object' ? payload : {}, actor: 'candidate' });
   res.status(201).json(event);
 });
 
 router.get('/:id/export', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const format = req.query.format || 'json';
   if (format === 'markdown') return res.type('text/markdown').send(exportKitMarkdown(kit));
@@ -117,28 +126,34 @@ router.get('/:id/export', async (req, res) => {
 });
 
 router.get('/:id/knowledge', async (req, res) => {
-  const kit = await Kit.exists({ _id: req.params.id });
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.exists({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(await KnowledgeNote.find({ kit_id: req.params.id }).sort({ updatedAt: -1 }).lean());
 });
 
 router.post('/:id/knowledge', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   const { title, content, url, skills, source_type } = req.body ?? {};
   if (typeof title !== 'string' || !title.trim() || typeof content !== 'string' || !content.trim()) return res.status(400).json({ error: 'title and content are required' });
-  const kit = await Kit.exists({ _id: req.params.id });
+  const kit = await Kit.exists({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const note = await KnowledgeNote.create({ kit_id: req.params.id, title, content, url: url || '', skills: Array.isArray(skills) ? skills : [], source_type: source_type || 'note' });
   res.status(201).json(note);
 });
 
 router.delete('/:id/knowledge/:noteId', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
+  const kitOwned = await Kit.exists({ _id: req.params.id, userId });
+  if (!kitOwned) return res.status(404).json({ error: 'Kit not found' });
   const deleted = await KnowledgeNote.findOneAndDelete({ _id: req.params.noteId, kit_id: req.params.id });
   if (!deleted) return res.status(404).json({ error: 'Knowledge note not found' });
   res.status(204).send();
 });
 
 router.get('/:id/progress', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const rated = kit.flashcards.filter(card => (card.confidence_score || 0) > 0);
   const averageConfidence = rated.length === 0 ? 0 : rated.reduce((total, card) => total + (card.confidence_score || 0), 0) / rated.length;
@@ -146,11 +161,12 @@ router.get('/:id/progress', async (req, res) => {
 });
 
 router.post('/:id/pressure-session', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   const level = req.body?.level || 'normal';
   const personality = req.body?.personality || 'friendly-engineer';
   if (!pressureLevels.includes(level as PressureLevel)) return res.status(400).json({ error: 'Invalid pressure level' });
   if (!interviewerPersonalities.includes(personality as InterviewerPersonality)) return res.status(400).json({ error: 'Invalid interviewer personality' });
-  const kit = await Kit.findById(req.params.id).lean();
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const session = createPressureSession(kit.questions, kit.role.requirements, level as PressureLevel, personality as InterviewerPersonality);
   const savedSession = await InterviewSession.create({ kit_id: kit._id, mode: 'pressure', level, personality, turns: session.turns, memory: { claims: [], weaknesses: [], contradictions: [], unfinished_topics: [] } });
@@ -158,14 +174,20 @@ router.post('/:id/pressure-session', async (req, res) => {
 });
 
 router.get('/:id/sessions/:sessionId', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
+  const kitOwned = await Kit.exists({ _id: req.params.id, userId });
+  if (!kitOwned) return res.status(404).json({ error: 'Kit not found' });
   const session = await InterviewSession.findOne({ _id: req.params.sessionId, kit_id: req.params.id });
   if (!session) return res.status(404).json({ error: 'Interview session not found' });
   res.json(session);
 });
 
 router.post('/:id/sessions/:sessionId/answer', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   const answer = req.body?.answer;
   if (typeof answer !== 'string' || !answer.trim()) return res.status(400).json({ error: 'answer is required' });
+  const kitOwned = await Kit.exists({ _id: req.params.id, userId });
+  if (!kitOwned) return res.status(404).json({ error: 'Kit not found' });
   const session = await InterviewSession.findOne({ _id: req.params.sessionId, kit_id: req.params.id });
   if (!session) return res.status(404).json({ error: 'Interview session not found' });
   updateSessionMemory(session, { answer, topic: req.body?.topic });
@@ -176,29 +198,33 @@ router.post('/:id/sessions/:sessionId/answer', async (req, res) => {
 });
 
 router.post('/:id/labs/architecture', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const lab = createArchitectureLab(kit);
   res.json(req.body?.answer ? { lab, evaluation: evaluateArchitectureSubmission(req.body.answer) } : { lab });
 });
 
 router.post('/:id/labs/coding', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const lab = createCodingLab(kit);
   res.json(req.body?.answer ? { lab, evaluation: evaluateCodingSubmission(req.body.answer) } : { lab });
 });
 
 router.get('/:id/resume-analysis', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(kit.resume_analysis || { claims: [], questions: [], needs_evidence: [], skills: [] });
 });
 
 router.post('/:id/resume-analysis', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   const resume = req.body?.resume;
   if (typeof resume !== 'string' || resume.trim().length < 20) return res.status(400).json({ error: 'resume must contain at least 20 characters' });
-  const kit = await Kit.findById(req.params.id);
+  const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const analysis = analyzeResume(resume, kit.role.requirements);
   kit.resume_analysis = analysis;
@@ -207,15 +233,17 @@ router.post('/:id/resume-analysis', async (req, res) => {
 });
 
 router.get('/:id/stories', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(kit.stories || []);
 });
 
 router.post('/:id/stories', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   const input = req.body as Partial<StoryInput>;
   if (!input.title || !input.category || !storyCategories.includes(input.category as StoryCategory)) return res.status(400).json({ error: 'title and valid category are required' });
-  const kit = await Kit.findById(req.params.id);
+  const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const story: StoryInput = { title: input.title, category: input.category as StoryCategory, situation: input.situation || '', task: input.task || '', action: input.action || '', result: input.result || '' };
   const savedStory = { id: `s${(kit.stories?.length || 0) + 1}`, ...story, analysis: analyzeStory(story) };
@@ -225,7 +253,8 @@ router.post('/:id/stories', async (req, res) => {
 });
 
 router.put('/:id/stories/:storyId', async (req, res) => {
-  const kit = await Kit.findById(req.params.id);
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const index = (kit.stories || []).findIndex(story => story.id === req.params.storyId);
   if (index < 0) return res.status(404).json({ error: 'Story not found' });
@@ -240,7 +269,8 @@ router.put('/:id/stories/:storyId', async (req, res) => {
 });
 
 router.delete('/:id/stories/:storyId', async (req, res) => {
-  const kit = await Kit.findById(req.params.id);
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const stories = (kit.stories || []).filter(story => story.id !== req.params.storyId);
   if (stories.length === (kit.stories || []).length) return res.status(404).json({ error: 'Story not found' });
@@ -250,27 +280,31 @@ router.delete('/:id/stories/:storyId', async (req, res) => {
 });
 
 router.get('/:id/blind-spots', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json({ blind_spots: findBlindSpots(kit.role.requirements, kit.questions, kit.flashcards) });
 });
 
 router.get('/:id/daily-weakness', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json({ daily_weakness: createDailyWeakness(kit.role.requirements, kit.questions, kit.flashcards) });
 });
 
 router.get('/:id/interview-day', async (req, res) => {
-  const kit = await Kit.findById(req.params.id).lean();
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(createInterviewDayPlan(kit));
 });
 
 router.post('/:id/debrief', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   const input = req.body as Partial<DebriefInput>;
   if (!Array.isArray(input.remembered_questions) || !Array.isArray(input.unanswered_topics)) return res.status(400).json({ error: 'remembered_questions and unanswered_topics must be arrays' });
-  const kit = await Kit.findById(req.params.id);
+  const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const debrief = analyzeDebrief({ remembered_questions: input.remembered_questions, unanswered_topics: input.unanswered_topics, interviewer_feedback: input.interviewer_feedback || '', confidence: Number(input.confidence) || 0, outcome: input.outcome || '' }, kit);
   kit.debrief = debrief;
@@ -280,6 +314,7 @@ router.post('/:id/debrief', async (req, res) => {
 
 // PUT update kit (Inline Edits, Question Reordering, Pinning)
 router.put('/:id', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   const { questions, flashcards, role, company_brief } = req.body ?? {};
   if (questions !== undefined && !Array.isArray(questions)) return res.status(400).json({ error: 'questions must be an array' });
   if (flashcards !== undefined && !Array.isArray(flashcards)) return res.status(400).json({ error: 'flashcards must be an array' });
@@ -287,8 +322,8 @@ router.put('/:id', async (req, res) => {
   const update = Object.fromEntries(
     Object.entries({ questions, flashcards, role, company_brief }).filter(([, value]) => value !== undefined),
   );
-  const updatedKit = await Kit.findByIdAndUpdate(
-    req.params.id,
+  const updatedKit = await Kit.findOneAndUpdate(
+    { _id: req.params.id, userId },
     { $set: update },
     { new: true, runValidators: true },
   );
@@ -299,11 +334,12 @@ router.put('/:id', async (req, res) => {
 
 // POST regenerate one category while preserving edited, custom, and pinned questions.
 router.post('/:id/regenerate', async (req, res) => {
+  const userId = (req as AuthedRequest).userId as string;
   const categories = ['technical', 'behavioural', 'system-design', 'company-fit'] as const;
   const category = req.body?.category;
   if (!categories.includes(category)) return res.status(400).json({ error: 'Invalid question category' });
 
-  const kit = await Kit.findById(req.params.id);
+  const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
 
   const existingIds = kit.questions.map(question => Number(question.id.replace(/^q/, '')) || 0);
@@ -319,7 +355,8 @@ router.post('/:id/regenerate', async (req, res) => {
 
 // POST recalculate schedule arithmetic
 router.post('/:id/reschedule', async (req, res) => {
-  const kit = await Kit.findById(req.params.id);
+  const userId = (req as AuthedRequest).userId as string;
+  const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
 
   const updatedSchedule = generateSchedule(

@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { apiFetch } from '@/lib/auth';
 
 interface Note {
   _id: string;
@@ -22,7 +23,7 @@ export default function KnowledgeBase({ kitId }: { kitId: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    fetch(`/api/kits/${kitId}/knowledge`)
+    apiFetch(`/api/kits/${kitId}/knowledge`)
       .then((response) => (response.ok ? response.json() : []))
       .then((data) => {
         setNotes(data);
@@ -46,7 +47,7 @@ export default function KnowledgeBase({ kitId }: { kitId: string }) {
     if (!title.trim() || !content.trim()) return;
     setSubmitting(true);
     try {
-      const response = await fetch(`/api/kits/${kitId}/knowledge`, {
+      const response = await apiFetch(`/api/kits/${kitId}/knowledge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,7 +82,7 @@ export default function KnowledgeBase({ kitId }: { kitId: string }) {
 
   const deleteNote = async (noteId: string) => {
     try {
-      await fetch(`/api/kits/${kitId}/knowledge/${noteId}`, {
+      await apiFetch(`/api/kits/${kitId}/knowledge/${noteId}`, {
         method: 'DELETE',
       });
       setNotes((current) => current.filter((note) => note._id !== noteId));
