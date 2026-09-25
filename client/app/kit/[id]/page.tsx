@@ -11,7 +11,7 @@ import WeaknessMode from '@/comonents/WeaknessMode';
 import { DebriefMode, InterviewDay } from '@/comonents/InterviewDay';
 import LabsMode from '@/comonents/LabsMode';
 import KnowledgeBase from '@/comonents/KnowledgeBase';
-import { apiFetch, isLoggedIn } from '@/lib/auth';
+import { apiFetch, clearToken, isLoggedIn } from '@/lib/auth';
 
 type Category = 'technical' | 'behavioural' | 'system-design' | 'company-fit';
 
@@ -84,7 +84,7 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Unable to load kit'))))
       .then((data) => setKit(data))
       .catch(() => setKit(null));
-  }, [id]);
+  }, [id, router]);
 
   useEffect(() => {
     if (!isLoggedIn()) return;
@@ -93,6 +93,11 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
       .then((data) => setReadiness(data))
       .catch(() => setReadiness(null));
   }, [id, kit?.questions.length, kit?.flashcards.length]);
+
+  const handleLogout = () => {
+    clearToken();
+    router.push('/login');
+  };
 
   const updateKit = async (nextKit: Kit) => {
     setKit(nextKit);
@@ -103,6 +108,8 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ questions: nextKit.questions, flashcards: nextKit.flashcards }),
       });
+    } catch {
+      // Retain optimistic UI state
     } finally {
       setSaving(false);
     }
@@ -145,13 +152,18 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
   };
 
   const regenerate = async (category: Category) => {
-    const response = await apiFetch(`${apiBase}/kits/${id}/regenerate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category }),
-    });
-    if (response.ok) {
-      setKit(await response.json());
+    try {
+      const response = await apiFetch(`${apiBase}/kits/${id}/regenerate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category }),
+      });
+      if (response.ok) {
+        const updatedData = await response.json();
+        setKit(updatedData);
+      }
+    } catch {
+      // Error handling fallthrough
     }
   };
 
@@ -203,7 +215,7 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
                 {kit.source.company} <span className="px-1 text-[#6F7887]">·</span> {kit.source.company_url}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 text-xs font-semibold text-[#A7AFBD]">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#A7AFBD]">
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
                 {kit.role.requirements.length} Requirements
               </span>
@@ -213,6 +225,13 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
                 {kit.schedule.days_available} Day Prep
               </span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="ml-2 rounded-lg border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-[#A7AFBD] transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
         </header>

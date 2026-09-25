@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiFetch, isLoggedIn } from '@/lib/auth';
+import { apiFetch, clearToken, isLoggedIn } from '@/lib/auth';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -39,7 +39,12 @@ export default function Home() {
       )
       .then((data) => setMission(data.kit))
       .catch(() => setMission(null));
-  }, []);
+  }, [router]);
+
+  const handleLogout = () => {
+    clearToken();
+    router.push('/login');
+  };
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,7 +60,9 @@ export default function Home() {
       if (!response.ok) throw new Error(data.error || 'Unable to generate kit');
       router.push(`/kit/${data._id}`);
     } catch (submissionError) {
-      setError(submissionError instanceof Error ? submissionError.message : 'Unable to generate kit');
+      setError(
+        submissionError instanceof Error ? submissionError.message : 'Unable to generate kit'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -72,6 +79,22 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#0B0D10] text-[#F5F7FA]">
+      {/* Top Header / Navigation */}
+      <header className="border-b border-white/10 bg-[#0B0D10]/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-12">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#60A5FA]">
+            Interview Intelligence OS
+          </p>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="rounded-lg border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-[#A7AFBD] transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+          >
+            Sign Out
+          </button>
+        </div>
+      </header>
+
       <div className="mx-auto max-w-7xl space-y-10 px-6 py-10 lg:px-12">
         {/* Mission Control Card */}
         {mission && missionVisible && (
@@ -130,14 +153,14 @@ export default function Home() {
             </div>
 
             {mission.top_risks.length > 0 && (
-              <div className="mt-5 flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
-                <span className="text-xs font-bold uppercase tracking-wide text-[#6F7887] mr-1">
+              <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/5 pt-2">
+                <span className="mr-1 text-xs font-bold uppercase tracking-wide text-[#6F7887]">
                   Top Risks
                 </span>
                 {mission.top_risks.map((risk) => (
                   <span
                     key={risk.topic}
-                    className="rounded-full bg-red-400/10 border border-red-500/20 px-3 py-1 text-xs font-semibold text-red-200"
+                    className="rounded-full border border-red-500/20 bg-red-400/10 px-3 py-1 text-xs font-semibold text-red-200"
                   >
                     {risk.topic} · {risk.average_confidence}/3
                   </span>
@@ -170,17 +193,17 @@ export default function Home() {
               Turn a job description and a company URL into a targeted question bank, practice deck, and adaptive preparation system.
             </p>
 
-            <div className="mt-8 grid grid-cols-3 gap-4 border-t border-white/10 pt-6 text-xs sm:text-sm text-[#A7AFBD]">
+            <div className="mt-8 grid grid-cols-3 gap-4 border-t border-white/10 pt-6 text-xs text-[#A7AFBD] sm:text-sm">
               <div>
-                <strong className="block text-xl sm:text-2xl font-bold text-[#F5F7FA]">01</strong>
+                <strong className="block text-xl font-bold text-[#F5F7FA] sm:text-2xl">01</strong>
                 Requirements
               </div>
               <div>
-                <strong className="block text-xl sm:text-2xl font-bold text-[#F5F7FA]">02</strong>
+                <strong className="block text-xl font-bold text-[#F5F7FA] sm:text-2xl">02</strong>
                 Questions
               </div>
               <div>
-                <strong className="block text-xl sm:text-2xl font-bold text-[#F5F7FA]">03</strong>
+                <strong className="block text-xl font-bold text-[#F5F7FA] sm:text-2xl">03</strong>
                 Practice
               </div>
             </div>
@@ -198,7 +221,7 @@ export default function Home() {
                   A little context makes the generated questions sharper.
                 </p>
               </div>
-              <span className="rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-bold text-blue-700 shrink-0">
+              <span className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                 1-60 days
               </span>
             </div>
@@ -277,7 +300,7 @@ export default function Home() {
             <button
               disabled={isSubmitting}
               type="submit"
-              className="mt-6 w-full rounded-xl bg-blue-600 px-5 py-4 text-sm font-bold text-white transition-all hover:bg-blue-700 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60 shadow-md"
+              className="mt-6 w-full rounded-xl bg-blue-600 px-5 py-4 text-sm font-bold text-white shadow-md transition-all hover:bg-blue-700 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60"
             >
               {isSubmitting ? 'Researching and building kit...' : 'Generate Interview Kit'}
             </button>
