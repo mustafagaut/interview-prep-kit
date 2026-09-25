@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import PracticeMode from '@/comonents/PracticeMode';
 import ReadinessRadar, { type ReadinessReport } from '@/comonents/ReadinessRadar';
 import PressureMode from '@/comonents/PressureMode';
@@ -10,6 +11,7 @@ import WeaknessMode from '@/comonents/WeaknessMode';
 import { DebriefMode, InterviewDay } from '@/comonents/InterviewDay';
 import LabsMode from '@/comonents/LabsMode';
 import KnowledgeBase from '@/comonents/KnowledgeBase';
+import { apiFetch, isLoggedIn } from '@/lib/auth';
 
 type Category = 'technical' | 'behavioural' | 'system-design' | 'company-fit';
 
@@ -48,6 +50,7 @@ interface Kit {
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export default function KitDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const { id } = use(params);
   const [kit, setKit] = useState<Kit | null>(null);
   const [activeTab, setActiveTab] = useState<
@@ -73,14 +76,19 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
 
   useEffect(() => {
-    fetch(`${apiBase}/kits/${id}`)
+    if (!isLoggedIn()) {
+      router.push('/login');
+      return;
+    }
+    apiFetch(`${apiBase}/kits/${id}`)
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Unable to load kit'))))
       .then((data) => setKit(data))
       .catch(() => setKit(null));
   }, [id]);
 
   useEffect(() => {
-    fetch(`${apiBase}/kits/${id}/readiness`)
+    if (!isLoggedIn()) return;
+    apiFetch(`${apiBase}/kits/${id}/readiness`)
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Unable to load readiness'))))
       .then((data) => setReadiness(data))
       .catch(() => setReadiness(null));
@@ -90,7 +98,7 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
     setKit(nextKit);
     setSaving(true);
     try {
-      await fetch(`${apiBase}/kits/${id}`, {
+      await apiFetch(`${apiBase}/kits/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ questions: nextKit.questions, flashcards: nextKit.flashcards }),
@@ -137,7 +145,7 @@ export default function KitDetailPage({ params }: { params: Promise<{ id: string
   };
 
   const regenerate = async (category: Category) => {
-    const response = await fetch(`${apiBase}/kits/${id}/regenerate`, {
+    const response = await apiFetch(`${apiBase}/kits/${id}/regenerate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ category }),

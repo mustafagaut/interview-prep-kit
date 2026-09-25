@@ -34,7 +34,9 @@ export async function startServer() {
   const mongoUri = process.env.MONGODB_URI;
   if (!mongoUri) throw new Error('MONGODB_URI is required');
 
-  await mongoose.connect(mongoUri);
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(mongoUri);
+  }
   const server = app.listen(port, () => console.log(`Interview kit API listening on port ${port}`));
   const shutdown = async (signal: string) => {
     console.log(`Received ${signal}; shutting down`);

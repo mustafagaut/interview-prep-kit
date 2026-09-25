@@ -6,7 +6,9 @@ import Kit from './Kit.js';
 const mongoUri = process.env.MONGODB_URI;
 
 test('persists builder and practice state', { skip: !mongoUri }, async () => {
-  await mongoose.connect(mongoUri as string);
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(mongoUri as string);
+  }
   const kit = await Kit.create({
     userId: new mongoose.Types.ObjectId(),
     source: { company_url: 'https://example.com' },
@@ -37,6 +39,8 @@ test('persists builder and practice state', { skip: !mongoUri }, async () => {
     assert.equal(persisted?.flashcards[0]?.confidence_score, 1);
   } finally {
     await Kit.deleteOne({ _id: kit._id });
-    await mongoose.disconnect();
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.disconnect();
+    }
   }
 });

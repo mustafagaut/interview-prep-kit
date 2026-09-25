@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch, isLoggedIn } from '@/lib/auth';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -27,8 +28,12 @@ export default function Home() {
   const [missionVisible, setMissionVisible] = useState(true);
 
   useEffect(() => {
+    if (!isLoggedIn()) {
+      router.push('/login');
+      return;
+    }
     setMissionVisible(window.localStorage.getItem('interview-prep-mission-hidden') !== 'true');
-    fetch(`${apiBase}/kits/dashboard`)
+    apiFetch(`${apiBase}/kits/dashboard`)
       .then((response) =>
         response.ok ? response.json() : Promise.reject(new Error('Dashboard unavailable'))
       )
@@ -41,7 +46,7 @@ export default function Home() {
     setError('');
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${apiBase}/kits`, {
+      const response = await apiFetch(`${apiBase}/kits`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jd, company_url: companyUrl, company, role, days }),

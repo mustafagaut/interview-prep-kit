@@ -11,6 +11,24 @@ Generate a personalized interview kit from a job description and company URL.
 
 The platform also includes deterministic readiness scoring, pressure simulations, resume evidence analysis, STAR stories, blind-spot detection, Interview Day, architecture/coding labs, knowledge notes, exports, persisted simulation memory, events, and feature flags.
 
+## Authentication
+
+The application uses JWT-based authentication:
+
+- **Registration**: Create an account with email and password (minimum 8 characters)
+- **Login**: Receive a JWT token valid for 7 days
+- **Protected Routes**: All kit-related API endpoints require authentication
+- **Token Management**: Tokens are stored in localStorage and automatically included in API requests
+- **Auto-Redirect**: Unauthorized requests redirect to the login page
+
+## Security Features
+
+- Password hashing with bcrypt (10 rounds)
+- ObjectId validation to prevent injection attacks
+- Connection pooling and proper MongoDB connection management
+- User data isolation (users can only access their own kits)
+- JWT token expiration and validation
+
 ---
 
 ## Pipeline
@@ -38,6 +56,10 @@ The platform also includes deterministic readiness scoring, pressure simulations
 | :--- | :--- | :--- |
 | `/health` | `GET` | Liveness check |
 | `/ready` | `GET` | MongoDB readiness check |
+| `/api/auth/register` | `POST` | Register a new user account |
+| `/api/auth/login` | `POST` | Login and receive JWT token |
+| `/api/auth/logout` | `POST` | Logout (client-side token management) |
+| `/api/auth/me` | `GET` | Get current user info |
 | `/api/kits` | `GET` \| `POST` | List kits or generate/persist a new kit |
 | `/api/kits/:id` | `GET` \| `PUT` | Retrieve a kit or persist builder/practice edits |
 | `/api/kits/:id/regenerate` | `POST` | Regenerate one question category |
@@ -60,6 +82,8 @@ The platform also includes deterministic readiness scoring, pressure simulations
 | `/api/kits/:id/events` | `GET` \| `POST` | Read or record kit events |
 | `/api/kits/features` | `GET` | Inspect enabled feature flags |
 
+**Note**: All `/api/kits/*` endpoints require authentication via JWT token in the `Authorization: Bearer <token>` header.
+
 ---
 
 ## Setup
@@ -70,3 +94,60 @@ The platform also includes deterministic readiness scoring, pressure simulations
 npm install
 npm install --prefix server
 npm install --prefix client
+```
+
+### 2. Configure Environment Variables
+
+Copy the example environment file and configure it with your values:
+
+```powershell
+cp .env.example .env
+```
+
+Required environment variables:
+
+- **MONGODB_URI**: MongoDB connection string (e.g., `mongodb://localhost:27017/interview-prep-kit`)
+- **JWT_SECRET**: Secret key for JWT token signing (use a strong random string in production)
+- **PORT**: Server port (default: 4000)
+- **NEXT_PUBLIC_API_URL**: Client-side API URL (default: `http://localhost:4000`)
+- **API_SERVER_URL**: Server-side API URL for Next.js rewrites (default: `http://localhost:4000`)
+
+### 3. Start MongoDB
+
+Ensure MongoDB is running locally or update `MONGODB_URI` to point to your MongoDB instance.
+
+### 4. Start the Development Servers
+
+```powershell
+# Start the backend server
+npm run dev:server
+
+# Start the frontend client (in a separate terminal)
+npm run dev:client
+```
+
+The backend will run on `http://localhost:4000` and the frontend on `http://localhost:3000`.
+
+### 5. Build for Production
+
+```powershell
+# Build the backend
+npm run build:server
+
+# Build the frontend
+npm run build:client
+
+# Start production servers
+npm run start:server
+npm run start:client
+```
+
+## Testing
+
+Run the test suite:
+
+```powershell
+npm test
+```
+
+Tests cover MongoDB persistence, service logic, and API functionality.

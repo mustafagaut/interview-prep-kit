@@ -13,6 +13,7 @@ const UserSchema = new Schema<IUser>({
 }, { timestamps: true });
 
 UserSchema.methods.comparePassword = function (candidate: string): Promise<boolean> {
+  if (!this.passwordHash) return Promise.resolve(false);
   return bcrypt.compare(candidate, this.passwordHash);
 };
 

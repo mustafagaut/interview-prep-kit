@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 import { signToken, requireAuth, type AuthedRequest } from '../middleware/auth.js';
@@ -23,7 +24,7 @@ router.post('/register', async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await User.create({ email, passwordHash });
-  const token = signToken(user.id);
+  const token = signToken(user._id);
   res.status(201).json({ token, email: user.email });
 });
 
@@ -34,10 +35,12 @@ router.post('/login', async (req, res) => {
   }
 
   const user = await User.findOne({ email: email.toLowerCase().trim() });
-  const valid = user ? await user.comparePassword(password) : false;
-  if (!user || !valid) return res.status(401).json({ error: 'Invalid email or password' });
+  if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+  
+  const valid = await user.comparePassword(password);
+  if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
-  const token = signToken(user.id);
+  const token = signToken(user._id);
   res.json({ token, email: user.email });
 });
 

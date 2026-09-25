@@ -23,7 +23,7 @@ interface Debrief {
   next_focus: string[];
 }
 
-export function InterviewDay({ kitId }: { kitId: string }) {
+export function InterviewDay({ kitId, onOpenQuestion, onOpenFlashcard }: { kitId: string; onOpenQuestion: (questionId: string) => void; onOpenFlashcard: (_flashcardId: string) => void }) {
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -84,12 +84,14 @@ export function InterviewDay({ kitId }: { kitId: string }) {
           </div>
           <div className="flex flex-wrap gap-2">
             {plan.top_question_ids.map((id) => (
-              <span
+              <button
                 key={id}
-                className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300"
+                type="button"
+                onClick={() => onOpenQuestion(id)}
+                className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-300 hover:bg-blue-500/20 transition-colors"
               >
                 {id}
-              </span>
+              </button>
             ))}
           </div>
         </article>
@@ -105,12 +107,14 @@ export function InterviewDay({ kitId }: { kitId: string }) {
           </div>
           <div className="flex flex-wrap gap-2">
             {plan.flashcard_ids.map((id) => (
-              <span
+              <button
                 key={id}
-                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300"
+                type="button"
+                onClick={() => onOpenFlashcard(id)}
+                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 transition-colors"
               >
                 {id}
-              </span>
+              </button>
             ))}
           </div>
         </article>

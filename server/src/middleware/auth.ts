@@ -1,8 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 
 export interface AuthedRequest extends Request {
-  userId?: string;
+  userId?: mongoose.Types.ObjectId;
 }
 
 function getSecret(): string {
@@ -11,8 +12,8 @@ function getSecret(): string {
   return secret;
 }
 
-export function signToken(userId: string): string {
-  return jwt.sign({ sub: userId }, getSecret(), { expiresIn: '7d' });
+export function signToken(userId: mongoose.Types.ObjectId): string {
+  return jwt.sign({ sub: userId.toString() }, getSecret(), { expiresIn: '7d' });
 }
 
 export function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
@@ -22,7 +23,7 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
 
   try {
     const payload = jwt.verify(token, getSecret()) as { sub: string };
-    req.userId = payload.sub;
+    req.userId = new mongoose.Types.ObjectId(payload.sub);
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired session' });

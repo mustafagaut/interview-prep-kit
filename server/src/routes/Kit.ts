@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import type { IStory } from '../models/Kit.js';
 import Kit from '../models/Kit.js';
 import InterviewSession from '../models/InterviewSession.js';
@@ -21,6 +22,10 @@ import type { AuthedRequest } from '../middleware/auth.js';
 
 const router = Router();
 
+function isValidObjectId(id: string): boolean {
+  return mongoose.Types.ObjectId.isValid(id);
+}
+
 router.get('/features', async (_req, res) => {
   const { getFeatureFlags } = await import('../services/featureFlags.js');
   res.json(getFeatureFlags());
@@ -28,7 +33,7 @@ router.get('/features', async (_req, res) => {
 
 // POST generate and persist a complete preparation kit.
 router.post('/', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const { jd, company_url, days, company, role, location } = req.body ?? {};
   if (typeof jd !== 'string' || !jd.trim()) return res.status(400).json({ error: 'jd is required' });
   if (typeof company_url !== 'string' || !company_url.trim()) return res.status(400).json({ error: 'company_url is required' });
@@ -55,13 +60,13 @@ router.post('/', async (req, res) => {
 
 // GET all user kits
 router.get('/', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const kits = await Kit.find({ userId }).sort({ createdAt: -1 });
   res.json(kits);
 });
 
 router.get('/dashboard', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const kit = await Kit.findOne({ userId }).sort({ updatedAt: -1 });
   if (!kit) return res.json({ kit: null, message: 'Create your first interview kit to start mission control.' });
   res.json({ kit: createMissionControl(kit) });
@@ -69,14 +74,16 @@ router.get('/dashboard', async (req, res) => {
 
 // GET single kit by ID
 router.get('/:id', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(kit);
 });
 
 router.get('/:id/readiness', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(calculateReadiness({
@@ -89,25 +96,28 @@ router.get('/:id/readiness', async (req, res) => {
 });
 
 router.get('/:id/next-action', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(getNextBestAction(kit));
 });
 
 router.get('/:id/events', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   if (!isFeatureEnabled('event_tracking')) return res.json([]);
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.exists({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(await Event.find({ kit_id: req.params.id }).sort({ createdAt: -1 }).limit(100).lean());
 });
 
 router.post('/:id/events', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   if (!isFeatureEnabled('event_tracking')) return res.status(404).json({ error: 'Event tracking is disabled' });
   const { type, payload } = req.body ?? {};
   if (typeof type !== 'string' || !type.trim()) return res.status(400).json({ error: 'type is required' });
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.exists({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const event = await Event.create({ kit_id: req.params.id, type, payload: payload && typeof payload === 'object' ? payload : {}, actor: 'candidate' });
@@ -115,7 +125,8 @@ router.post('/:id/events', async (req, res) => {
 });
 
 router.get('/:id/export', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const format = req.query.format || 'json';
@@ -126,16 +137,18 @@ router.get('/:id/export', async (req, res) => {
 });
 
 router.get('/:id/knowledge', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.exists({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(await KnowledgeNote.find({ kit_id: req.params.id }).sort({ updatedAt: -1 }).lean());
 });
 
 router.post('/:id/knowledge', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const { title, content, url, skills, source_type } = req.body ?? {};
   if (typeof title !== 'string' || !title.trim() || typeof content !== 'string' || !content.trim()) return res.status(400).json({ error: 'title and content are required' });
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.exists({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const note = await KnowledgeNote.create({ kit_id: req.params.id, title, content, url: url || '', skills: Array.isArray(skills) ? skills : [], source_type: source_type || 'note' });
@@ -143,7 +156,8 @@ router.post('/:id/knowledge', async (req, res) => {
 });
 
 router.delete('/:id/knowledge/:noteId', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id) || !isValidObjectId(req.params.noteId)) return res.status(400).json({ error: 'Invalid ID format' });
   const kitOwned = await Kit.exists({ _id: req.params.id, userId });
   if (!kitOwned) return res.status(404).json({ error: 'Kit not found' });
   const deleted = await KnowledgeNote.findOneAndDelete({ _id: req.params.noteId, kit_id: req.params.id });
@@ -152,7 +166,8 @@ router.delete('/:id/knowledge/:noteId', async (req, res) => {
 });
 
 router.get('/:id/progress', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const rated = kit.flashcards.filter(card => (card.confidence_score || 0) > 0);
@@ -161,11 +176,12 @@ router.get('/:id/progress', async (req, res) => {
 });
 
 router.post('/:id/pressure-session', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const level = req.body?.level || 'normal';
   const personality = req.body?.personality || 'friendly-engineer';
   if (!pressureLevels.includes(level as PressureLevel)) return res.status(400).json({ error: 'Invalid pressure level' });
   if (!interviewerPersonalities.includes(personality as InterviewerPersonality)) return res.status(400).json({ error: 'Invalid interviewer personality' });
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const session = createPressureSession(kit.questions, kit.role.requirements, level as PressureLevel, personality as InterviewerPersonality);
@@ -174,7 +190,8 @@ router.post('/:id/pressure-session', async (req, res) => {
 });
 
 router.get('/:id/sessions/:sessionId', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id) || !isValidObjectId(req.params.sessionId)) return res.status(400).json({ error: 'Invalid ID format' });
   const kitOwned = await Kit.exists({ _id: req.params.id, userId });
   if (!kitOwned) return res.status(404).json({ error: 'Kit not found' });
   const session = await InterviewSession.findOne({ _id: req.params.sessionId, kit_id: req.params.id });
@@ -183,9 +200,10 @@ router.get('/:id/sessions/:sessionId', async (req, res) => {
 });
 
 router.post('/:id/sessions/:sessionId/answer', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const answer = req.body?.answer;
   if (typeof answer !== 'string' || !answer.trim()) return res.status(400).json({ error: 'answer is required' });
+  if (!isValidObjectId(req.params.id) || !isValidObjectId(req.params.sessionId)) return res.status(400).json({ error: 'Invalid ID format' });
   const kitOwned = await Kit.exists({ _id: req.params.id, userId });
   if (!kitOwned) return res.status(404).json({ error: 'Kit not found' });
   const session = await InterviewSession.findOne({ _id: req.params.sessionId, kit_id: req.params.id });
@@ -198,7 +216,8 @@ router.post('/:id/sessions/:sessionId/answer', async (req, res) => {
 });
 
 router.post('/:id/labs/architecture', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const lab = createArchitectureLab(kit);
@@ -206,7 +225,8 @@ router.post('/:id/labs/architecture', async (req, res) => {
 });
 
 router.post('/:id/labs/coding', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const lab = createCodingLab(kit);
@@ -214,16 +234,18 @@ router.post('/:id/labs/coding', async (req, res) => {
 });
 
 router.get('/:id/resume-analysis', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(kit.resume_analysis || { claims: [], questions: [], needs_evidence: [], skills: [] });
 });
 
 router.post('/:id/resume-analysis', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const resume = req.body?.resume;
   if (typeof resume !== 'string' || resume.trim().length < 20) return res.status(400).json({ error: 'resume must contain at least 20 characters' });
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const analysis = analyzeResume(resume, kit.role.requirements);
@@ -233,16 +255,18 @@ router.post('/:id/resume-analysis', async (req, res) => {
 });
 
 router.get('/:id/stories', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(kit.stories || []);
 });
 
 router.post('/:id/stories', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const input = req.body as Partial<StoryInput>;
   if (!input.title || !input.category || !storyCategories.includes(input.category as StoryCategory)) return res.status(400).json({ error: 'title and valid category are required' });
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const story: StoryInput = { title: input.title, category: input.category as StoryCategory, situation: input.situation || '', task: input.task || '', action: input.action || '', result: input.result || '' };
@@ -253,7 +277,8 @@ router.post('/:id/stories', async (req, res) => {
 });
 
 router.put('/:id/stories/:storyId', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const index = (kit.stories || []).findIndex(story => story.id === req.params.storyId);
@@ -269,7 +294,8 @@ router.put('/:id/stories/:storyId', async (req, res) => {
 });
 
 router.delete('/:id/stories/:storyId', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const stories = (kit.stories || []).filter(story => story.id !== req.params.storyId);
@@ -280,30 +306,34 @@ router.delete('/:id/stories/:storyId', async (req, res) => {
 });
 
 router.get('/:id/blind-spots', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json({ blind_spots: findBlindSpots(kit.role.requirements, kit.questions, kit.flashcards) });
 });
 
 router.get('/:id/daily-weakness', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json({ daily_weakness: createDailyWeakness(kit.role.requirements, kit.questions, kit.flashcards) });
 });
 
 router.get('/:id/interview-day', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId }).lean();
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   res.json(createInterviewDayPlan(kit));
 });
 
 router.post('/:id/debrief', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const input = req.body as Partial<DebriefInput>;
   if (!Array.isArray(input.remembered_questions) || !Array.isArray(input.unanswered_topics)) return res.status(400).json({ error: 'remembered_questions and unanswered_topics must be arrays' });
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
   const debrief = analyzeDebrief({ remembered_questions: input.remembered_questions, unanswered_topics: input.unanswered_topics, interviewer_feedback: input.interviewer_feedback || '', confidence: Number(input.confidence) || 0, outcome: input.outcome || '' }, kit);
@@ -314,10 +344,11 @@ router.post('/:id/debrief', async (req, res) => {
 
 // PUT update kit (Inline Edits, Question Reordering, Pinning)
 router.put('/:id', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const { questions, flashcards, role, company_brief } = req.body ?? {};
   if (questions !== undefined && !Array.isArray(questions)) return res.status(400).json({ error: 'questions must be an array' });
   if (flashcards !== undefined && !Array.isArray(flashcards)) return res.status(400).json({ error: 'flashcards must be an array' });
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
 
   const update = Object.fromEntries(
     Object.entries({ questions, flashcards, role, company_brief }).filter(([, value]) => value !== undefined),
@@ -334,10 +365,11 @@ router.put('/:id', async (req, res) => {
 
 // POST regenerate one category while preserving edited, custom, and pinned questions.
 router.post('/:id/regenerate', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
   const categories = ['technical', 'behavioural', 'system-design', 'company-fit'] as const;
   const category = req.body?.category;
   if (!categories.includes(category)) return res.status(400).json({ error: 'Invalid question category' });
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
 
   const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
@@ -355,7 +387,8 @@ router.post('/:id/regenerate', async (req, res) => {
 
 // POST recalculate schedule arithmetic
 router.post('/:id/reschedule', async (req, res) => {
-  const userId = (req as AuthedRequest).userId as string;
+  const userId = (req as AuthedRequest).userId as mongoose.Types.ObjectId;
+  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid kit ID' });
   const kit = await Kit.findOne({ _id: req.params.id, userId });
   if (!kit) return res.status(404).json({ error: 'Kit not found' });
 
