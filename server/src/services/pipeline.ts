@@ -85,6 +85,19 @@ function inferKind(text: string): IRequirement['kind'] {
 
 function extractRequirements(jd: string): IRequirement[] {
   const lines = splitLines(jd);
+  
+  // Handle thin descriptions (2-line stubs with almost no detail)
+  if (lines.length < 3) {
+    return [
+      { 
+        id: 'r1', 
+        text: 'Demonstrate relevant experience for this role based on the limited job description provided.', 
+        kind: 'domain', 
+        priority: 'must' 
+      }
+    ];
+  }
+  
   const candidates = lines.filter(line =>
     /\b(require|must|need|experience|proficien|skill|ability|knowledge|familiar|responsib)/i.test(line)
   );

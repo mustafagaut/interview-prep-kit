@@ -1,93 +1,148 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { IQuestion, IRequirement } from '../models/Kit.js';
 import { evaluateCoverage, generateQuestionBank, validateQuestionBank } from './pipeline.js';
-import { generateSchedule } from './scheduler.js';
+import type { IQuestion, IRequirement } from '../models/Kit.js';
 
-const requirements: IRequirement[] = [
-  { id: 'r1', text: 'Build APIs', kind: 'technical', priority: 'must' },
-  { id: 'r2', text: 'Communicate clearly', kind: 'behavioural', priority: 'nice' },
-];
-
-const questions: IQuestion[] = [
-  {
-    id: 'q1',
-    requirement_ids: ['r1'],
-    category: 'technical',
-    prompt: 'Design an API.',
-    answer_outline: 'Explain trade-offs.',
-    difficulty: 3,
-  },
-];
-
-test('coverage returns uncovered must requirements only', () => {
-  assert.deepEqual(evaluateCoverage(requirements, questions), []);
-  assert.deepEqual(evaluateCoverage(requirements, []), ['r1']);
-});
-
-test('schedule clamps days and allocates difficulty minutes', () => {
-  const schedule = generateSchedule(0, requirements, questions);
-  assert.equal(schedule.days_available, 1);
-  assert.deepEqual(schedule.days[0]?.question_ids, ['q1']);
-  assert.equal(schedule.days[0]?.minutes, 45);
-});
-
-test('schedule prioritizes must requirements before nice requirements', () => {
-  const mustQuestion = questions[0];
-  if (!mustQuestion) throw new Error('Test question fixture is missing');
-  const niceQuestion: IQuestion = {
-    id: 'q2',
-    requirement_ids: ['r2'],
-    category: 'technical',
-    prompt: mustQuestion.prompt,
-    answer_outline: mustQuestion.answer_outline,
-    difficulty: 3,
-  };
-  const schedule = generateSchedule(2, requirements, [niceQuestion, mustQuestion]);
-  assert.deepEqual(schedule.days[0]?.question_ids, ['q1']);
-  assert.deepEqual(schedule.days[1]?.question_ids, ['q2']);
-});
-
-test('question validation accepts the 20-question category distribution', () => {
-  const categories: IQuestion['category'][] = [
-    ...Array<IQuestion['category']>(10).fill('technical'),
-    ...Array<IQuestion['category']>(4).fill('system-design'),
-    ...Array<IQuestion['category']>(3).fill('behavioural'),
-    ...Array<IQuestion['category']>(3).fill('company-fit'),
+test('coverage check identifies uncovered must-have requirements', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'Must-have skill', kind: 'technical', priority: 'must' },
+    { id: 'r2', text: 'Another must-have', kind: 'technical', priority: 'must' },
+    { id: 'r3', text: 'Nice-to-have', kind: 'technical', priority: 'nice' },
   ];
-  const balancedQuestions = categories.map((category, index): IQuestion => ({
-    id: `q${index + 1}`,
-    requirement_ids: ['r1'],
-    category,
-    prompt: `${category} question ${index + 1}`,
-    answer_outline: 'Explain the approach and result.',
-    difficulty: category === 'system-design' ? 3 : 2,
-  }));
-  assert.deepEqual(validateQuestionBank(balancedQuestions, [requirements[0] as IRequirement], 20, 'Senior MERN Stack Developer'), []);
+  
+  const questions: IQuestion[] = [
+    { id: 'q1', requirement_ids: ['r1'], category: 'technical', prompt: 'Question', answer_outline: 'Answer', difficulty: 2 },
+  ];
+  
+  const uncovered = evaluateCoverage(requirements, questions);
+  
+  assert.equal(uncovered.length, 1);
+  assert.equal(uncovered[0], 'r2');
 });
 
-test('question validation rejects company-fit domination', () => {
-  const companyFitQuestions = Array.from({ length: 20 }, (_, index): IQuestion => ({
-    id: `q${index + 1}`,
-    requirement_ids: ['r1'],
-    category: 'company-fit',
-    prompt: `Company question ${index + 1}`,
-    answer_outline: 'Explain the motivation.',
-    difficulty: 2,
-  }));
-  assert.ok(validateQuestionBank(companyFitQuestions, [requirements[0] as IRequirement], 20, 'Senior MERN Stack Developer').includes('company-fit-dominates'));
+test('coverage check returns empty array when all must-haves covered', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'Must-have skill', kind: 'technical', priority: 'must' },
+    { id: 'r2', text: 'Nice-to-have', kind: 'technical', priority: 'nice' },
+  ];
+  
+  const questions: IQuestion[] = [
+    { id: 'q1', requirement_ids: ['r1'], category: 'technical', prompt: 'Question', answer_outline: 'Answer', difficulty: 2 },
+  ];
+  
+  const uncovered = evaluateCoverage(requirements, questions);
+  
+  assert.equal(uncovered.length, 0);
 });
 
-test('question generator scales to the 30-question distribution', () => {
-  const generated = generateQuestionBank(
-    [requirements[0] as IRequirement],
-    'Senior MERN Stack Developer responsible for scalable MERN architecture, React, Node.js, MongoDB, Redis, AWS, Docker, WebSockets, security, and CI/CD.',
-    'Senior MERN Stack Developer',
-    30,
-  );
-  const counts = generated.reduce<Record<IQuestion['category'], number>>((result, question) => {
-    result[question.category] += 1;
-    return result;
-  }, { technical: 0, 'system-design': 0, behavioural: 0, 'company-fit': 0 });
-  assert.deepEqual(counts, { technical: 15, 'system-design': 6, behavioural: 5, 'company-fit': 4 });
+test('coverage check handles questions covering multiple requirements', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'Must-have 1', kind: 'technical', priority: 'must' },
+    { id: 'r2', text: 'Must-have 2', kind: 'technical', priority: 'must' },
+  ];
+  
+  const questions: IQuestion[] = [
+    { id: 'q1', requirement_ids: ['r1', 'r2'], category: 'technical', prompt: 'Question', answer_outline: 'Answer', difficulty: 2 },
+  ];
+  
+  const uncovered = evaluateCoverage(requirements, questions);
+  
+  assert.equal(uncovered.length, 0);
+});
+
+test('question bank generates correct total count', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'JavaScript experience', kind: 'technical', priority: 'must' },
+    { id: 'r2', text: 'React experience', kind: 'technical', priority: 'must' },
+  ];
+  
+  const questions = generateQuestionBank(requirements, 'Job description here', 'Developer', 10);
+  
+  assert.equal(questions.length, 10);
+});
+
+test('question bank generates all required categories', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'Technical skill', kind: 'technical', priority: 'must' },
+  ];
+  
+  const questions = generateQuestionBank(requirements, 'Job description', 'Developer', 20);
+  
+  const categories = new Set(questions.map(q => q.category));
+  assert.equal(categories.has('technical'), true);
+  assert.equal(categories.has('behavioural'), true);
+  assert.equal(categories.has('company-fit'), true);
+});
+
+test('question bank validation detects missing categories', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'Skill', kind: 'technical', priority: 'must' },
+  ];
+  
+  const incompleteQuestions: IQuestion[] = [
+    { id: 'q1', requirement_ids: ['r1'], category: 'technical', prompt: 'Question', answer_outline: 'Answer', difficulty: 2 },
+  ];
+  
+  const errors = validateQuestionBank(incompleteQuestions, requirements, 20, 'Developer');
+  
+  assert.equal(errors.length > 0, true);
+  assert.equal(errors.some(error => error.includes('category:')), true);
+});
+
+test('question bank validation detects duplicate prompts', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'Skill', kind: 'technical', priority: 'must' },
+  ];
+  
+  const duplicateQuestions: IQuestion[] = [
+    { id: 'q1', requirement_ids: ['r1'], category: 'technical', prompt: 'Same question', answer_outline: 'Answer', difficulty: 2 },
+    { id: 'q2', requirement_ids: ['r1'], category: 'technical', prompt: 'Same question', answer_outline: 'Answer', difficulty: 2 },
+  ];
+  
+  const errors = validateQuestionBank(duplicateQuestions, requirements, 2, 'Developer');
+  
+  assert.equal(errors.length > 0, true);
+});
+
+test('question bank validation detects invalid requirement references', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'Skill', kind: 'technical', priority: 'must' },
+  ];
+  
+  const invalidQuestions: IQuestion[] = [
+    { id: 'q1', requirement_ids: ['r999'], category: 'technical', prompt: 'Question', answer_outline: 'Answer', difficulty: 2 },
+  ];
+  
+  const errors = validateQuestionBank(invalidQuestions, requirements, 1, 'Developer');
+  
+  assert.equal(errors.length > 0, true);
+});
+
+test('question bank generates stable IDs', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'Skill', kind: 'technical', priority: 'must' },
+  ];
+  
+  const questions1 = generateQuestionBank(requirements, 'Job description', 'Developer', 5);
+  const questions2 = generateQuestionBank(requirements, 'Job description', 'Developer', 5);
+  
+  assert.equal(questions1.length, questions2.length);
+  questions1.forEach((q, i) => {
+    assert.equal(q.id, questions2[i].id);
+  });
+});
+
+test('question bank preserves requirement references', () => {
+  const requirements: IRequirement[] = [
+    { id: 'r1', text: 'Must-have', kind: 'technical', priority: 'must' },
+    { id: 'r2', text: 'Nice-to-have', kind: 'technical', priority: 'nice' },
+  ];
+  
+  const questions = generateQuestionBank(requirements, 'Job description', 'Developer', 5);
+  
+  questions.forEach(question => {
+    question.requirement_ids.forEach(reqId => {
+      assert.equal(requirements.some(r => r.id === reqId), true);
+    });
+  });
 });

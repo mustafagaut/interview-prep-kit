@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test": "node --import tsx --test src/services/pipeline.test.ts src/services/readiness.test.ts src/services/pressure.test.ts src/services/resume.test.ts src/services/stories.test.ts src/services/weakness.test.ts src/services/interviewDay.test.ts src/services/nextAction.test.ts src/services/sessionMemory.test.ts src/services/labs.test.ts src/services/exports.test.ts src/services/featureFlags.test.ts src/index.test.ts src/models/Kit.persistence.test.ts"
+    "test": "node --import tsx --test src/services/pipeline.test.ts src/services/scheduler.test.ts src/services/structure.test.ts src/services/readiness.test.ts src/services/pressure.test.ts src/services/resume.test.ts src/services/stories.test.ts src/services/weakness.test.ts src/services/interviewDay.test.ts src/services/nextAction.test.ts src/services/sessionMemory.test.ts src/services/labs.test.ts src/services/exports.test.ts src/services/featureFlags.test.ts src/index.test.ts src/models/Kit.persistence.test.ts"
   },
   "keywords": [],
   "author": "",

@@ -7,7 +7,8 @@
     "build:server": "cd server && npm run build",
     "build:client": "cd client && npm run build",
     "test": "npm test --prefix server",
-    "evaluate": "server\\node_modules\\.bin\\tsx.cmd scripts/evaluate.js"
+    "evaluate": "server\\node_modules\\.bin\\tsx.cmd scripts/evaluate.js",
+    "batch": "node scripts/batch.js"
   },
   "dependencies": {
     "minimist": "^1.2.8"

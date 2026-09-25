@@ -10,20 +10,71 @@ export interface CrawlResult {
 }
 
 const USER_AGENT = 'PrepKitBot/1.0';
+const MAX_CONTENT_SIZE = 1024 * 1024; // 1MB max content size
+const ALLOWED_CONTENT_TYPES = ['text/html', 'text/plain', 'application/xhtml+xml', 'text/xml'];
 
-async function fetchWithRetry(url: string, timeout: number, attempts = 3): Promise<{ data: string }> {
+function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    
+    // Reject private and loopback addresses
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === 'localhost' || 
+        hostname === '127.0.0.1' || 
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.') ||
+        hostname.startsWith('172.') ||
+        hostname.startsWith('0.') ||
+        hostname.startsWith('127.') ||
+        hostname.startsWith('169.254.')) {
+      return false;
+    }
+    
+    // Only allow http and https
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedContentType(contentType?: string): boolean {
+  if (!contentType) return false;
+  const normalized = contentType.toLowerCase();
+  return ALLOWED_CONTENT_TYPES.some(allowed => normalized.includes(allowed));
+}
+
+async function fetchWithRetry(url: string, timeout: number, attempts = 3): Promise<{ data: string; contentType?: string }> {
+  if (!isValidUrl(url)) {
+    throw new Error(`Invalid or restricted URL: ${url}`);
+  }
+  
   let lastError: unknown;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
-      return await axios.get<string>(url, {
+      const response = await axios.get<string>(url, {
         timeout,
         headers: { 'User-Agent': USER_AGENT },
         validateStatus: status => status >= 200 && status < 400,
+        maxContentLength: MAX_CONTENT_SIZE,
+        responseType: 'text',
       });
+      
+      const rawContentType = response.headers['content-type'];
+      const contentType = String(rawContentType ?? '');
+      if (!isAllowedContentType(contentType || '')) {
+        throw new Error(`Content type not allowed: ${contentType}`);
+      }
+      
+      return { data: response.data, contentType };
     } catch (error) {
       lastError = error;
       if (attempt < attempts - 1) {
-        await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+        const delay = Math.min(250 * 2 ** attempt, 5000); // Cap at 5 seconds
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
@@ -66,8 +117,9 @@ export async function crawlCompanySite(targetUrl: string): Promise<CrawlResult> 
   } catch {
     return { pagesUsed, content: 'Invalid company URL.', searchContent, searchSources };
   }
-  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-    return { pagesUsed, content: 'Invalid company URL protocol.', searchContent, searchSources };
+  
+  if (!isValidUrl(targetUrl)) {
+    return { pagesUsed, content: 'Invalid or restricted company URL.', searchContent, searchSources };
   }
 
   try {
